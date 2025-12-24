@@ -1,0 +1,10 @@
+name: compress-pdf
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - pip
+  - ghostscript
+  - tk
+  - pip:
+      - .

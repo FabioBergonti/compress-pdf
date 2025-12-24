@@ -1,0 +1,7 @@
+build/
+dist/
+*.egg-info/
+.eggs/
+
+run_compress_pdf.cmd
+run_compress_pdf.sh
