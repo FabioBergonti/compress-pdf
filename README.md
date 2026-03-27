@@ -60,6 +60,36 @@ python scripts/make_launcher.py
 chmod +x run_compress_pdf.sh
 ```
 
+## 📦 Build a standalone executable (no conda needed for end users)
+
+You can package the app into a self-contained `.exe` using PyInstaller.  
+The Ghostscript binary is bundled automatically when the conda environment is active.
+
+1. Activate the environment and install PyInstaller:
+   ```bash
+   conda activate compress-pdf
+   pip install pyinstaller
+   ```
+2. Run the build script:
+   ```bash
+   python scripts/build_exe.py
+   ```
+   This creates `dist/compress-pdf/` containing `compress-pdf.exe` and all dependencies (including Ghostscript).
+
+3. Share the **entire** `dist/compress-pdf/` folder with users — they just double-click `compress-pdf.exe`.
+
+### Build options
+
+| Flag | Effect |
+|------|--------|
+| *(none)* | **Recommended.** Folder bundle (`dist/compress-pdf/`). Fast startup, Ghostscript included. |
+| `--onefile` | Single `.exe` (~50 MB). Slower first launch. Ghostscript embedded. |
+| `--no-gs` | Skip bundling Ghostscript. Users must install it and select it via the GUI. |
+
+> **Note:** A `--onedir` (default) bundle must be distributed as a folder; moving only the `.exe` out of it will break the app.
+
+---
+
 ## ⚙️ Ghostscript notes
 
 * **Windows**: expected executable is `gswin64c.exe`

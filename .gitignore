@@ -2,6 +2,7 @@ build/
 dist/
 *.egg-info/
 .eggs/
+*.exe
 
 run_compress_pdf.cmd
 run_compress_pdf.sh

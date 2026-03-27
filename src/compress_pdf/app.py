@@ -35,6 +35,14 @@ PDF_PRESETS = [
 
 
 def find_ghostscript():
+    # When running as a PyInstaller bundle, check the bundle directory first.
+    # sys._MEIPASS: points to the dist folder (onedir) or the temp extraction dir (onefile).
+    bundle_dir = getattr(sys, "_MEIPASS", None)
+    if bundle_dir:
+        for name in GS_CANDIDATES:
+            candidate = Path(bundle_dir) / name
+            if candidate.exists():
+                return str(candidate)
     for name in GS_CANDIDATES:
         p = shutil.which(name)
         if p:
