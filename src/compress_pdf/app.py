@@ -70,6 +70,20 @@ def safe_output_path(output_root: Path, input_root: Path, pdf_path: Path):
     return out_path
 
 
+def rasterize_pdf(gs_exe: str, in_pdf: Path, out_pdf: Path, dpi: int = 450):
+    """Rasterize a vector PDF to image-based PDF using pdfimage24 device."""
+    cmd = [
+        gs_exe,
+        "-dNOPAUSE", "-dBATCH", "-dQUIET",
+        "-sDEVICE=pdfimage24",
+        f"-r{dpi}",
+        f"-sOutputFile={str(out_pdf)}",
+        str(in_pdf),
+    ]
+    proc = subprocess.run(cmd, capture_output=True, text=True)
+    return proc.returncode, proc.stdout, proc.stderr
+
+
 def compress_pdf(gs_exe: str, in_pdf: Path, out_pdf: Path, pdf_setting: str):
     # Example command:
     # gswin64c -sDEVICE=pdfwrite -dCompatibilityLevel=1.4 -dPDFSETTINGS=/ebook -dNOPAUSE -dQUIET -dBATCH -sOutputFile=... ...
@@ -100,6 +114,7 @@ class App(tk.Tk):
         self.output_dir = tk.StringVar()
         self.recursive = tk.BooleanVar(value=True)
         self.overwrite = tk.BooleanVar(value=True)
+        self.rasterize = tk.BooleanVar(value=False)
         self.gs_path = tk.StringVar(value="")
         self.preset_choice = tk.StringVar(value=PDF_PRESETS[1][0])
         self.preset_map = dict(PDF_PRESETS)
@@ -137,6 +152,7 @@ class App(tk.Tk):
         row3.pack(fill="x", **pad)
         ttk.Checkbutton(row3, text="Process subfolders", variable=self.recursive).pack(side="left")
         ttk.Checkbutton(row3, text="Overwrite if exists", variable=self.overwrite).pack(side="left", padx=18)
+        ttk.Checkbutton(row3, text="Rasterize (vector→image)", variable=self.rasterize).pack(side="left", padx=18)
 
         # Compression level
         row3b = ttk.Frame(frm)
@@ -287,12 +303,14 @@ class App(tk.Tk):
         self._log(f"PDF to process: {len(pdfs)}")
         if is_file:
             self._log("Single-file mode")
-        self._log(f"Recursive: {self.recursive.get()} | Overwrite: {self.overwrite.get()}")
+        self._log(f"Recursive: {self.recursive.get()} | Overwrite: {self.overwrite.get()} | Rasterize: {self.rasterize.get()}")
         self._log(f"Preset: -dCompatibilityLevel=1.4 -dPDFSETTINGS={preset_value}")
+
+        rasterize_flag = self.rasterize.get()
 
         self.worker_thread = threading.Thread(
             target=self._worker,
-            args=(input_path.parent if is_file else input_path, out_dir, gs, pdfs, preset_value),
+            args=(input_path.parent if is_file else input_path, out_dir, gs, pdfs, preset_value, rasterize_flag),
             daemon=True,
         )
         self.worker_thread.start()
@@ -301,7 +319,7 @@ class App(tk.Tk):
         self.stop_flag.set()
         self._log("STOP requested... (finishes after current file)")
 
-    def _worker(self, in_root: Path, out_dir: Path, gs: str, pdfs: list[Path], preset: str):
+    def _worker(self, in_root: Path, out_dir: Path, gs: str, pdfs: list[Path], preset: str, do_rasterize: bool = False):
         ok = 0
         skipped = 0
         failed = 0
@@ -328,7 +346,27 @@ class App(tk.Tk):
                 except Exception:
                     pass
 
-            rc, _, err = compress_pdf(gs, pdf, tmp_out, preset)
+            # Optionally rasterize before compressing
+            raster_tmp = None
+            source_pdf = pdf
+            if do_rasterize:
+                raster_tmp = out_pdf.with_suffix(".raster.pdf")
+                rc_r, _, err_r = rasterize_pdf(gs, pdf, raster_tmp)
+                if rc_r != 0 or not raster_tmp.exists():
+                    failed += 1
+                    self._log_q(f"[FAIL] {pdf.name} (rasterize rc={rc_r})")
+                    if err_r:
+                        self._log_q(f"       stderr: {err_r.strip()[:500]}")
+                    self.log_q.put(("progress", i))
+                    try:
+                        if raster_tmp and raster_tmp.exists():
+                            raster_tmp.unlink()
+                    except Exception:
+                        pass
+                    continue
+                source_pdf = raster_tmp
+
+            rc, _, err = compress_pdf(gs, source_pdf, tmp_out, preset)
             if rc == 0 and tmp_out.exists() and tmp_out.stat().st_size > 0:
                 try:
                     in_size = pdf.stat().st_size
@@ -379,6 +417,13 @@ class App(tk.Tk):
                         tmp_out.unlink()
                 except Exception:
                     pass
+
+            # Clean up rasterized temp file
+            try:
+                if raster_tmp and raster_tmp.exists():
+                    raster_tmp.unlink()
+            except Exception:
+                pass
 
             self.log_q.put(("progress", i))
 
