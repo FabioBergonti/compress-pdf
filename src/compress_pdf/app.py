@@ -70,7 +70,7 @@ def safe_output_path(output_root: Path, input_root: Path, pdf_path: Path):
     return out_path
 
 
-def rasterize_pdf(gs_exe: str, in_pdf: Path, out_pdf: Path, dpi: int = 450):
+def rasterize_pdf(gs_exe: str, in_pdf: Path, out_pdf: Path, dpi: int = 600):
     """Rasterize a vector PDF to image-based PDF using pdfimage24 device."""
     cmd = [
         gs_exe,
